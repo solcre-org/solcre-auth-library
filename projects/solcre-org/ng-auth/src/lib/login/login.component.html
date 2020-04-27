@@ -1,0 +1,17 @@
+<form 
+    name="app-login-form"
+    id="app-login-form"
+    class="styled-form" 
+    [formGroup]="signinForm" 
+    (ngSubmit)="onSubmit()">
+    <h1>Auth library</h1>
+    <div>
+        <input class="input" type="text" (blur)="onBlur()" id="email" formControlName="email" name="email"><br>
+    </div>
+    <label *ngIf="searchingCode" for="email">Buscando dominio...</label>
+    <label *ngIf="codeNotFound" for="email">*Error al encontrar dominio</label>
+    <div>
+        <input class="input" type="password" id="password" formControlName="password" name="password"><br>
+    </div>
+    <button class="rounded-btn" type="submit">Entrar</button>
+</form>
