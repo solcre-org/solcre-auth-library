@@ -1,127 +1,259 @@
-import { LocalStorageService } from 'angular-2-local-storage';
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { Router } from '@angular/router';
+
+import { HttpErrorResponse, HttpClient } from '@angular/common/http';
 import { EventEmitter } from '@angular/core';
-import { AccessTokenModel } from './access-token.model';
 import { Injectable } from '@angular/core';
-import { environment } from './environment';
+import { LocalStorageService } from 'angular-2-local-storage';
+
+import { AccessTokenModel } from './access-token.model';
+import { AuthConfigInterface } from './auth-config.interface';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+//import { environment } from './environment';
 
 @Injectable({ //duda
-  providedIn: 'root'
+	providedIn: 'root'
 })
 export class AuthService {
+	// Models
+	private me: any;
+	private config: AuthConfigInterface;
+	private accessToken: AccessTokenModel;
 
-    codeDomain: string;
-    public searchingCode: EventEmitter<boolean> = new EventEmitter();
-    public codeNotFound: EventEmitter<boolean> = new EventEmitter();
+	// User session events emitters
+	private onSessionStateChange: EventEmitter<boolean>;
+	private onMeChanged: EventEmitter<any>;
 
-    private accessToken: AccessTokenModel;
+	// Service constructure
+	constructor(
+		private httpClient: HttpClient,
+		private storageService: LocalStorageService) {
+		// Create event emitters
+		this.onSessionStateChange = new EventEmitter<boolean>();
+		this.onMeChanged = new EventEmitter<any>();
 
-    constructor(
-        private router: Router,
-        private httpClient: HttpClient,
-        private localStorageService: LocalStorageService
-    ) { }
+		// Default values
+		this.config = {};
+	}
 
-    public isAuthenticated() {
-        let currentUser = this.localStorageService.get('access_token');
-        if (currentUser) {
-            return true;
-        };
-        return false;
-    }
+	// Methods
+	public setConfig(config: AuthConfigInterface): void {
+		this.config = config;
+	}
 
-    public login(email: string, password: string) {
-        let username = email.split("@");
+	public getAccessToken(): AccessTokenModel {
+		return this.accessToken;
+	}
 
-        this.httpClient.post(environment.apiURL + this.codeDomain + environment.oauthURI, {
-            "client_id": "columnis_manager",
-            "grant_type": "password",
-            "username": username[0],
-            "password": password
-        }).subscribe(
-            (response: any) => {
-                this.localStorageService.set('code', this.codeDomain);
-                this.localStorageService.set('access_token', response['access_token']);
+	public getMe(): any {
+		return this.me;
+	}
 
-                // this.localStorageService.set('refresh_token', response['refresh_token']);
-                console.log("Logged in", response);
-                this.router.navigate(['/']);
-                this.accessToken = this.parseAccessToken(response);
-            },
-            (error: HttpErrorResponse) => {
-                let message: string;
-                // this.translateService.get('share.dialog.errorPassword').subscribe(response => {
-                //     message = response;
-                // });
-                console.log(message);
-                console.log(error.error.detail);
-            }
+	public isLogged(): boolean {
+		return !!this.me;
+	}
 
+	public getOnSessionStateChange(): Observable<boolean> {
+		return this.onSessionStateChange;
+	}
 
-        );
-    }
+	public getOnMeChanged(): Observable<any> {
+		return this.onMeChanged;
+	}
 
-    public logout() {
-        // this.localStorageService.clearAll();
-        this.localStorageService.remove('access_token');
-        this.localStorageService.remove('code');
-        this.router.navigate(['/oauth']);
-    }
+	// Generate a access token
+	public login(loginUsername: string, loginPassword: string): Observable<boolean> {
+		// Create an observable
+		const obs = new Observable<boolean>((observer: any) => {
+			// Set root strategy
 
-    public getAccessToken(): string {
-        return this.localStorageService.get('access_token');
-    }
+			// Request token
+			this.httpClient.post(this.config.apiURL + this.config.oauthUri, {
+				username: loginUsername,
+				password: loginPassword,
+				grant_type: this.config.grantType,
+				client_id: this.config.clientId
+			}).pipe(
+				map((response: any) => {
+					// Save token to Local storage
+					if (response) {
+						this.storageService.set(this.config.accessTokenLsKey, response.data);
+					}
 
+					// Creates the access token model
+					return this.parseAccessToken(response.data);
+				})
+			).subscribe((response: AccessTokenModel) => {
+				// Load accesstoken
+				this.accessToken = response;
 
-    public setCode(domain: string) {
-        this.searchingCode.emit(true);
-        if (this.localStorageService.get(domain)) {
-            console.log("desde ls");
-            this.codeNotFound.emit(false);
-            this.searchingCode.emit(false);
-            this.codeDomain = this.localStorageService.get(domain);
-        } else {
-            let params = new HttpParams().set('domain', domain);
-            this.httpClient.get(environment.apiURL + environment.codeURI, { params }).subscribe((response: any) => {
-                this.codeDomain = response.code;
-                if (!((this.codeDomain) == '000')) {
-                    this.localStorageService.set(domain, this.codeDomain);
-                    this.searchingCode.emit(false); //si encuentra un codigo
-                } else {
-                    this.searchingCode.emit(false); //si no encuentra
-                    this.codeNotFound.emit(true);
-                }
-            }, (error: HttpErrorResponse) => {
-                this.searchingCode.emit(false); //si no encuentra
-                this.codeNotFound.emit(true);
-                console.log(error);
-            });
-        }
-    }
+				// Check meUrl
+				if (this.config.oauthMeUri) {
+					// Request me info
+					this.requestMe().subscribe(
+						() => {
+							// Notify user state
+							this.checkAndNotifyMeState();
 
-    public getCode(): string {
-        return this.localStorageService.get('code');
-    }
+							// Load response
+							observer.next(true);
+							observer.complete();
+						},
+						() => {
+							// Rise error
+							observer.error(response);
+						}
+					);
+				} else {
+					// Complete subscribe
+					observer.next(true);
+					observer.complete();
+				}
+			}, (response: HttpErrorResponse) => {
+				// Rise error
+				observer.error(response);
+			});
+		});
+		return obs;
+	}
 
-    private parseAccessToken(obj: any): AccessTokenModel {
-        let accessToken: AccessTokenModel = null;
+	// Generate a access token
+	public requestMe(): Observable<any> {
+		// Do request
+		return this.httpClient.get(this.config.apiURL + this.config.oauthMeUri).pipe(
+			map((response: any) => {
+				// Load userLogged
+				this.me = response
 
-        //Check access token
-        if (obj && obj.access_token) {
-            //parse expiration date
-            let expiration = new Date();
-            expiration.setMinutes(expiration.getMinutes() + (obj.expires_in / 60));
+				// Emit parsed and changed
+				this.onMeChanged.emit(this.me);
+				return this.me;
+			})
+		);
+	}
 
-            //Creates the access token model
-            accessToken = new AccessTokenModel(
-                obj.access_token,
-                obj.refresh_token,
-                expiration
-            );
-        }
-        console.log(accessToken);
-        return accessToken;
-    }
+	public refreshToken(): Observable<AccessTokenModel> {
+		// Get refresh token
+		const refreshToken: string = this.accessToken instanceof AccessTokenModel ? this.accessToken.refreshToken : '';
 
+		// Request token
+		return this.httpClient.post(this.config.apiURL + this.config.oauthUri, {
+			refresh_token: refreshToken,
+			grant_type: this.config.grantTypeRefresh,
+			client_id: this.config.clientId
+		}).pipe(
+			map((response: any) => {
+				// Check response
+				if (response) {
+					// Load the refresh token
+					response.refresh_token = refreshToken;
+
+					// Save to LS
+					this.storageService.set(this.config.accessTokenLsKey, response.data);
+				}
+
+				// Creates the access token model
+				this.accessToken = this.parseAccessToken(response.data);
+				return this.accessToken;
+			})
+		);
+	}
+
+	public loadSession(): Observable<boolean> {
+		// Create an observable
+		const obs = new Observable<boolean>((observer: any) => {
+			const accessTokenLs: any = this.storageService.get(this.config.accessTokenLsKey);
+			const completeObservable: Function = (result: boolean) => {
+				observer.next(result);
+				observer.complete();
+			};
+
+			// Check access token getted from ls
+			if (accessTokenLs) {
+				// Creat access token
+				this.accessToken = this.parseAccessToken(accessTokenLs);
+
+				// Check token
+				if (this.accessToken instanceof AccessTokenModel) {
+					// Has configured me
+					if (this.config.oauthMeUri) {
+						// Request me info
+						this.requestMe().subscribe(
+							() => {
+								// Notify user state
+								this.checkAndNotifyMeState();
+
+								// Finish load
+								completeObservable(true);
+							},
+							() => {
+								// Finish load
+								completeObservable(false);
+							}
+						);
+					} else {
+						// Load success without me
+						completeObservable(true);
+					}
+				} else {
+					// Finish load
+					completeObservable(false);
+				}
+			} else {
+				// Finish load
+				completeObservable(false);
+			}
+		});
+		return obs;
+	}
+
+	public logout(): void {
+		// Clear Local storage
+		this.storageService.remove(this.config.accessTokenLsKey);
+
+		// Clear data in memory
+		this.me = null;
+		this.accessToken = null;
+
+		// Emit state change
+		this.checkAndNotifyMeState();
+	}
+
+	public checkAndNotifyMeState(): void {
+		if (this.me && this.accessToken instanceof AccessTokenModel) {
+			// Emit login event
+			this.onSessionStateChange.emit(true);
+		} else {
+			// Emit login event
+			this.onSessionStateChange.emit(false);
+		}
+	}
+
+	public updateMe(me: any): void {
+		this.me = me;
+
+		// Emit change
+		this.onMeChanged.emit(me);
+	}
+
+	// Private methods
+	private parseAccessToken(json: any): AccessTokenModel {
+		let accessToken: AccessTokenModel = null;
+
+		// Check access token
+		if (json && json.access_token) {
+			// parse expiration date
+			const expiration: Date = new Date();
+			const expiresIn: number = json.expires_in / 60;
+			expiration.setMinutes(expiration.getMinutes() + expiresIn);
+
+			// Creates the access token model
+			accessToken = new AccessTokenModel(
+				json.access_token,
+				json.refresh_token,
+				expiration
+			);
+		}
+		return accessToken;
+	}
 }

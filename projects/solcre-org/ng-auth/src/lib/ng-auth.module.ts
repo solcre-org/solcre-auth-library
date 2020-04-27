@@ -5,33 +5,23 @@ import { CommonModule } from '@angular/common';
 import { LocalStorageModule } from 'angular-2-local-storage';
 
 import { AuthInterceptor } from './auth.interceptor';
-import { LoginComponent } from './login/login.component';
 
 @NgModule({
-    declarations: [
-        LoginComponent
-    ], 
+    declarations: [], 
     imports: [
         LocalStorageModule,
         CommonModule,
         FormsModule,
         HttpClientModule,
-        ReactiveFormsModule,
-        LocalStorageModule.forRoot({
-            prefix: 'columnis-manager',
-            storageType: 'localStorage'
-        }),
+        ReactiveFormsModule
     ],
-    exports: [
-        LoginComponent
-    ],
+    exports: [],
     providers: [
         {
             provide: HTTP_INTERCEPTORS,
             useClass: AuthInterceptor,
             multi: true
-        },
-        LoginComponent,
+        }
     ]
 })
 export class NgAuthModule { } 
