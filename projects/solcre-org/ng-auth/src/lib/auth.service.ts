@@ -83,11 +83,11 @@ export class AuthService {
 				map((response: any) => {
 					// Save token to Local storage
 					if (response) {
-						this.storageService.set(this.config.accessTokenLsKey, response.data);
+						this.storageService.set(this.config.accessTokenLsKey, response);
 					}
 
 					// Creates the access token model
-					return this.parseAccessToken(response.data);
+					return this.parseAccessToken(response);
 				})
 			).subscribe((response: AccessTokenModel) => {
 				// Load accesstoken
@@ -167,11 +167,11 @@ export class AuthService {
 					response.refresh_token = refreshToken;
 
 					// Save to LS
-					this.storageService.set(this.config.accessTokenLsKey, response.data);
+					this.storageService.set(this.config.accessTokenLsKey, response);
 				}
 
 				// Creates the access token model
-				this.accessToken = this.parseAccessToken(response.data);
+				this.accessToken = this.parseAccessToken(response);
 				return this.accessToken;
 			})
 		);
