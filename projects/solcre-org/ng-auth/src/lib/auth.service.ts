@@ -65,15 +65,21 @@ export class AuthService {
 	public login(loginUsername: string, loginPassword: string): Observable<boolean> {
 		// Create an observable
 		const obs = new Observable<boolean>((observer: any) => {
-			// Set root strategy
-
-			// Request token
-			this.httpClient.post(this.config.apiURL + this.config.oauthUri, {
+			// Main login obj
+			const params: any = {
 				username: loginUsername,
 				password: loginPassword,
 				grant_type: this.config.grantType,
 				client_id: this.config.clientId
-			}).pipe(
+			};
+
+			// Oauth type has configured?
+			if(this.config.oauthType){
+				params['oauth_type'] = this.config.oauthType;
+			}
+
+			// Request token
+			this.httpClient.post(this.config.apiURL + this.config.oauthUri, params).pipe(
 				map((response: any) => {
 					// Save token to Local storage
 					if (response) {

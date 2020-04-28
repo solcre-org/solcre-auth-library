@@ -5,6 +5,7 @@ export interface AuthConfigInterface {
 
 	// Oauth
 	oauthUri?: string;
+	oauthType?: string,
 	grantType?: string;
 	grantTypeRefresh?: string;
 	clientId?: string;
