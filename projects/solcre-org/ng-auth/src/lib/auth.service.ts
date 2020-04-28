@@ -1,5 +1,5 @@
 
-import { HttpErrorResponse, HttpClient } from '@angular/common/http';
+import { HttpErrorResponse, HttpClient, HttpHeaders } from '@angular/common/http';
 import { EventEmitter } from '@angular/core';
 import { Injectable } from '@angular/core';
 import { LocalStorageService } from 'angular-2-local-storage';
@@ -125,8 +125,20 @@ export class AuthService {
 
 	// Generate a access token
 	public requestMe(): Observable<any> {
+		//Header json
+		const headers: any = {}
+
+		//Check access token to add access token header
+		if(this.accessToken){
+			headers['Authorization'] = 'Bearer ' + this.accessToken.token;
+		}
+
+		//Get options
+		const httpOptions = {
+			headers: new HttpHeaders(headers)
+		};
 		// Do request
-		return this.httpClient.get(this.config.apiURL + this.config.oauthMeUri).pipe(
+		return this.httpClient.get(this.config.apiURL + this.config.oauthMeUri, httpOptions).pipe(
 			map((response: any) => {
 				// Load userLogged
 				this.me = response
