@@ -27,7 +27,6 @@ export class AuthInterceptor implements HttpInterceptor {
 				catchError((error, caught) => {
 					//Check error type
 					if (error instanceof HttpErrorResponse) {
-                        console.log(error);
                         switch (error.status) {
 							case 400:
 								return this.handle400Error(error);
@@ -35,6 +34,8 @@ export class AuthInterceptor implements HttpInterceptor {
 								return this.handle401Error(error, req, next);
 							case 403:
 								return this.handle403Error(error);
+							default:
+								return throwError(error);;
 						}
 					}
 					return new Observable<HttpEvent<any>>();
