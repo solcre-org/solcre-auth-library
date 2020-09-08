@@ -176,13 +176,11 @@ export class AuthService {
 			return;
 		}
 
-		const token: AccessTokenModel = this.parseAccessToken(tokenJson)
-
 		// Save token to Local storage
-		this.storageService.set(this.config.accessTokenLsKey, token);
+		this.storageService.set(this.config.accessTokenLsKey, tokenJson);
 
-		// Load accesstoken
-		this.accessToken = token;
+		//Parse it and load to memory
+		this.accessToken = this.parseAccessToken(tokenJson);
 	}
 
 	public loadSession(): Observable<boolean> {
