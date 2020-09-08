@@ -1,12 +1,12 @@
 {
-  "name": "@solcre-org/ng-auth",
-  "version": "1.0.6",
-  "peerDependencies": {
-    "@angular/common": "^9.1.3",
-    "@angular/core": "^9.1.3",
-    "tslib": "^1.10.0"
-  },
-  "dependencies": {
-    "angular-2-local-storage": "^3.0.2"
-  }
+	"name": "@solcre-org/ng-auth",
+	"version": "1.0.7",
+	"peerDependencies": {
+		"@angular/common": "^9.1.3",
+		"@angular/core": "^9.1.3",
+		"tslib": "^1.10.0"
+	},
+	"dependencies": {
+		"angular-2-local-storage": "^3.0.2"
+	}
 }

@@ -74,7 +74,7 @@ export class AuthService {
 			};
 
 			// Oauth type has configured?
-			if(this.config.oauthType){
+			if (this.config.oauthType) {
 				params['oauth_type'] = this.config.oauthType;
 			}
 
@@ -82,17 +82,11 @@ export class AuthService {
 			this.httpClient.post(this.config.apiURL + this.config.oauthUri, params).pipe(
 				map((response: any) => {
 					// Save token to Local storage
-					if (response) {
-						this.storageService.set(this.config.accessTokenLsKey, response);
-					}
+					this.saveToken(response);
 
-					// Creates the access token model
-					return this.parseAccessToken(response);
+					return this.accessToken;
 				})
 			).subscribe((response: AccessTokenModel) => {
-				// Load accesstoken
-				this.accessToken = response;
-
 				// Check meUrl
 				if (this.config.oauthMeUri) {
 					// Request me info
@@ -129,7 +123,7 @@ export class AuthService {
 		const headers: any = {}
 
 		//Check access token to add access token header
-		if(this.accessToken){
+		if (this.accessToken) {
 			headers['Authorization'] = 'Bearer ' + this.accessToken.token;
 		}
 
@@ -175,6 +169,20 @@ export class AuthService {
 				return this.accessToken;
 			})
 		);
+	}
+
+	public saveToken(tokenJson: any): void {
+		if (!tokenJson) {
+			return;
+		}
+
+		const token: AccessTokenModel = this.parseAccessToken(tokenJson)
+
+		// Save token to Local storage
+		this.storageService.set(this.config.accessTokenLsKey, token);
+
+		// Load accesstoken
+		this.accessToken = token;
 	}
 
 	public loadSession(): Observable<boolean> {
