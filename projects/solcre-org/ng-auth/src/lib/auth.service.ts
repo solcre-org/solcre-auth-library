@@ -50,7 +50,7 @@ export class AuthService {
 	}
 
 	public isLogged(): boolean {
-		return !!this.me;
+		return !!this.accessToken;
 	}
 
 	public getOnSessionStateChange(): Observable<boolean> {
@@ -105,6 +105,9 @@ export class AuthService {
 						}
 					);
 				} else {
+					// Notify user state
+					this.checkAndNotifyMeState();
+
 					// Complete subscribe
 					observer.next(true);
 					observer.complete();
