@@ -41,6 +41,10 @@ export class AuthService {
 		this.config = config;
 	}
 
+	public updateConfig(config: AuthConfigInterface): void {
+		this.config = { ...this.config, ...config };
+	}
+
 	public getAccessToken(): AccessTokenModel {
 		return this.accessToken;
 	}
