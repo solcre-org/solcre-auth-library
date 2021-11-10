@@ -3,8 +3,5 @@
   "dest": "../../../dist/solcre-org/ng-auth",
   "lib": {
     "entryFile": "src/public-api.ts"
-  },
-  "whitelistedNonPeerDependencies": [
-	"angular-2-local-storage"
-  ]
+  }
 }
