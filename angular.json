@@ -145,7 +145,6 @@
       }
     }
   },
-  "defaultProject": "solcre-auth-library",
   "cli": {
     "analytics": false
   }
