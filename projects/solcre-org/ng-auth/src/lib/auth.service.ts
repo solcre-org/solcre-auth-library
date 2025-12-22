@@ -1,39 +1,33 @@
-
 import { HttpErrorResponse, HttpClient, HttpHeaders } from '@angular/common/http';
 import { EventEmitter } from '@angular/core';
 import { Injectable } from '@angular/core';
-import { LocalStorageService } from 'angular-2-local-storage';
+import { StorageService } from './storage.service';
 
 import { AccessTokenModel } from './access-token.model';
 import { AuthConfigInterface } from './auth-config.interface';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-//import { environment } from './environment';
-
-@Injectable({ //duda
+@Injectable({
 	providedIn: 'root'
 })
 export class AuthService {
 	// Models
-	private me: any;
-	private config: AuthConfigInterface;
-	private accessToken: AccessTokenModel;
+	private me: unknown;
+	private config: AuthConfigInterface = {};
+	private accessToken: AccessTokenModel | null = null;
 
 	// User session events emitters
 	private onSessionStateChange: EventEmitter<boolean>;
-	private onMeChanged: EventEmitter<any>;
+	private onMeChanged: EventEmitter<unknown>;
 
-	// Service constructure
+	// Service constructor
 	constructor(
 		private httpClient: HttpClient,
-		private storageService: LocalStorageService) {
+		private storageService: StorageService) {
 		// Create event emitters
 		this.onSessionStateChange = new EventEmitter<boolean>();
-		this.onMeChanged = new EventEmitter<any>();
-
-		// Default values
-		this.config = {};
+		this.onMeChanged = new EventEmitter<unknown>();
 	}
 
 	// Methods
@@ -45,11 +39,11 @@ export class AuthService {
 		this.config = { ...this.config, ...config };
 	}
 
-	public getAccessToken(): AccessTokenModel {
+	public getAccessToken(): AccessTokenModel | null {
 		return this.accessToken;
 	}
 
-	public getMe(): any {
+	public getMe(): unknown {
 		return this.me;
 	}
 
@@ -61,20 +55,20 @@ export class AuthService {
 		return this.onSessionStateChange;
 	}
 
-	public getOnMeChanged(): Observable<any> {
+	public getOnMeChanged(): Observable<unknown> {
 		return this.onMeChanged;
 	}
 
-	// Generate a access token
+	// Generate an access token
 	public login(loginUsername: string, loginPassword: string): Observable<boolean> {
 		// Create an observable
-		const obs = new Observable<boolean>((observer: any) => {
+		const obs = new Observable<boolean>((observer) => {
 			// Main login obj
-			const params: any = {
+			const params: Record<string, string> = {
 				username: loginUsername,
 				password: loginPassword,
-				grant_type: this.config.grantType,
-				client_id: this.config.clientId
+				grant_type: this.config.grantType || '',
+				client_id: this.config.clientId || ''
 			};
 
 			// Oauth type has configured?
@@ -82,52 +76,56 @@ export class AuthService {
 				params['oauth_type'] = this.config.oauthType;
 			}
 
+			const url = (this.config.apiURL || '') + (this.config.oauthUri || '');
+
 			// Request token
-			this.httpClient.post(this.config.apiURL + this.config.oauthUri, params).pipe(
-				map((response: any) => {
+			this.httpClient.post(url, params).pipe(
+				map((response: unknown) => {
 					// Save token to Local storage
 					this.saveToken(response);
-
 					return this.accessToken;
 				})
-			).subscribe((response: AccessTokenModel) => {
-				// Check meUrl
-				if (this.config.oauthMeUri) {
-					// Request me info
-					this.requestMe().subscribe(
-						() => {
-							// Notify user state
-							this.checkAndNotifyMeState();
+			).subscribe({
+				next: () => {
+					// Check meUrl
+					if (this.config.oauthMeUri) {
+						// Request me info
+						this.requestMe().subscribe({
+							next: () => {
+								// Notify user state
+								this.checkAndNotifyMeState();
 
-							// Load response
-							observer.next(true);
-							observer.complete();
-						},
-						() => {
-							// Rise error
-							observer.error(response);
-						}
-					);
-				} else {
-					// Notify user state
-					this.checkAndNotifyMeState();
+								// Load response
+								observer.next(true);
+								observer.complete();
+							},
+							error: () => {
+								// Rise error
+								observer.error(this.accessToken);
+							}
+						});
+					} else {
+						// Notify user state
+						this.checkAndNotifyMeState();
 
-					// Complete subscribe
-					observer.next(true);
-					observer.complete();
+						// Complete subscribe
+						observer.next(true);
+						observer.complete();
+					}
+				},
+				error: (response: HttpErrorResponse) => {
+					// Rise error
+					observer.error(response);
 				}
-			}, (response: HttpErrorResponse) => {
-				// Rise error
-				observer.error(response);
 			});
 		});
 		return obs;
 	}
 
-	// Generate a access token
-	public requestMe(): Observable<any> {
+	// Generate an access token
+	public requestMe(): Observable<unknown> {
 		//Header json
-		const headers: any = {}
+		const headers: Record<string, string> = {};
 
 		//Check access token to add access token header
 		if (this.accessToken) {
@@ -138,11 +136,14 @@ export class AuthService {
 		const httpOptions = {
 			headers: new HttpHeaders(headers)
 		};
+
+		const url = (this.config.apiURL || '') + (this.config.oauthMeUri || '');
+
 		// Do request
-		return this.httpClient.get(this.config.apiURL + this.config.oauthMeUri, httpOptions).pipe(
-			map((response: any) => {
+		return this.httpClient.get(url, httpOptions).pipe(
+			map((response: unknown) => {
 				// Load userLogged
-				this.me = response
+				this.me = response;
 
 				// Emit parsed and changed
 				this.onMeChanged.emit(this.me);
@@ -151,40 +152,47 @@ export class AuthService {
 		);
 	}
 
-	public refreshToken(): Observable<AccessTokenModel> {
+	public refreshToken(): Observable<AccessTokenModel | null> {
 		// Get refresh token
 		const refreshToken: string = this.accessToken instanceof AccessTokenModel ? this.accessToken.refreshToken : '';
 
+		const url = (this.config.apiURL || '') + (this.config.oauthUri || '');
+
 		// Request token
-		return this.httpClient.post(this.config.apiURL + this.config.oauthUri, {
+		return this.httpClient.post(url, {
 			refresh_token: refreshToken,
 			grant_type: this.config.grantTypeRefresh,
 			client_id: this.config.clientId
 		}).pipe(
-			map((response: any) => {
+			map((response: unknown) => {
+				const tokenResponse = response as Record<string, unknown>;
 				// Check response
-				if (response) {
+				if (tokenResponse) {
 					// Load the refresh token
-					response.refresh_token = refreshToken;
+					tokenResponse['refresh_token'] = refreshToken;
 
 					// Save to LS
-					this.storageService.set(this.config.accessTokenLsKey, response);
+					if (this.config.accessTokenLsKey) {
+						this.storageService.set(this.config.accessTokenLsKey, tokenResponse);
+					}
 				}
 
 				// Creates the access token model
-				this.accessToken = this.parseAccessToken(response);
+				this.accessToken = this.parseAccessToken(tokenResponse);
 				return this.accessToken;
 			})
 		);
 	}
 
-	public saveToken(tokenJson: any): void {
+	public saveToken(tokenJson: unknown): void {
 		if (!tokenJson) {
 			return;
 		}
 
 		// Save token to Local storage
-		this.storageService.set(this.config.accessTokenLsKey, tokenJson);
+		if (this.config.accessTokenLsKey) {
+			this.storageService.set(this.config.accessTokenLsKey, tokenJson);
+		}
 
 		//Parse it and load to memory
 		this.accessToken = this.parseAccessToken(tokenJson);
@@ -192,16 +200,19 @@ export class AuthService {
 
 	public loadSession(): Observable<boolean> {
 		// Create an observable
-		const obs = new Observable<boolean>((observer: any) => {
-			const accessTokenLs: any = this.storageService.get(this.config.accessTokenLsKey);
-			const completeObservable: Function = (result: boolean) => {
+		const obs = new Observable<boolean>((observer) => {
+			const accessTokenLs = this.config.accessTokenLsKey 
+				? this.storageService.get<Record<string, unknown>>(this.config.accessTokenLsKey)
+				: null;
+			
+			const completeObservable = (result: boolean) => {
 				observer.next(result);
 				observer.complete();
 			};
 
 			// Check access token getted from ls
 			if (accessTokenLs) {
-				// Creat access token
+				// Create access token
 				this.accessToken = this.parseAccessToken(accessTokenLs);
 
 				// Check token
@@ -209,19 +220,19 @@ export class AuthService {
 					// Has configured me
 					if (this.config.oauthMeUri) {
 						// Request me info
-						this.requestMe().subscribe(
-							() => {
+						this.requestMe().subscribe({
+							next: () => {
 								// Notify user state
 								this.checkAndNotifyMeState();
 
 								// Finish load
 								completeObservable(true);
 							},
-							() => {
+							error: () => {
 								// Finish load
 								completeObservable(false);
 							}
-						);
+						});
 					} else {
 						// Load success without me
 						completeObservable(true);
@@ -240,7 +251,9 @@ export class AuthService {
 
 	public logout(): void {
 		// Clear Local storage
-		this.storageService.remove(this.config.accessTokenLsKey);
+		if (this.config.accessTokenLsKey) {
+			this.storageService.remove(this.config.accessTokenLsKey);
+		}
 
 		// Clear data in memory
 		this.me = null;
@@ -260,7 +273,7 @@ export class AuthService {
 		}
 	}
 
-	public updateMe(me: any): void {
+	public updateMe(me: unknown): void {
 		this.me = me;
 
 		// Emit change
@@ -268,20 +281,22 @@ export class AuthService {
 	}
 
 	// Private methods
-	private parseAccessToken(json: any): AccessTokenModel {
-		let accessToken: AccessTokenModel = null;
+	private parseAccessToken(json: unknown): AccessTokenModel | null {
+		let accessToken: AccessTokenModel | null = null;
+
+		const tokenData = json as Record<string, unknown> | null;
 
 		// Check access token
-		if (json && json.access_token) {
+		if (tokenData && tokenData['access_token']) {
 			// parse expiration date
 			const expiration: Date = new Date();
-			const expiresIn: number = json.expires_in / 60;
+			const expiresIn: number = (tokenData['expires_in'] as number) / 60;
 			expiration.setMinutes(expiration.getMinutes() + expiresIn);
 
 			// Creates the access token model
 			accessToken = new AccessTokenModel(
-				json.access_token,
-				json.refresh_token,
+				tokenData['access_token'] as string,
+				tokenData['refresh_token'] as string,
 				expiration
 			);
 		}
